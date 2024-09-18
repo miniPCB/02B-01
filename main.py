@@ -194,6 +194,8 @@ def update(frame):
     plt.plot(indexes, q3_values, label='Q3')
     plt.plot(indexes, q4_values, label='Q4')
 
+    plt.ylim(0, 3.3)
+
     # Add labels and legend
     plt.xlabel('Index')
     plt.ylabel('ADC Reading (V)')
