@@ -1,5 +1,7 @@
 import os
 import platform
+import smbus
+import time
 
 # Determine the platform and set the correct file path
 current_platform = platform.system()
@@ -80,6 +82,76 @@ q4_values = []
 def generate_random_adc_value():
     return round(random.uniform(ADC_CENTER - ADC_DEVIATION, ADC_CENTER + ADC_DEVIATION), 3)
 
+# Create an SMBus instance (e.g., bus number 1 for Raspberry Pi)
+bus = smbus.SMBus(1)
+
+# TLA2024 I2C address (modify if different)
+address = 0x48
+
+def read_adc_channel(channel, address, bus):
+    """
+    Reads the voltage from a specified channel on the TLA2024 ADC.
+
+    Parameters:
+    - channel (int): ADC channel to read (0-3).
+    - address (int): I2C address of the TLA2024 device.
+    - bus (smbus.SMBus): SMBus instance for I2C communication.
+
+    Returns:
+    - float: Measured voltage on the specified channel.
+    """
+    # Validate the channel number
+    if channel < 0 or channel > 3:
+        raise ValueError('Invalid channel: must be 0-3')
+
+    # Map the channel to the MUX configuration bits for single-ended input
+    mux = 0b100 + channel  # Channels 0-3 correspond to MUX settings 100-111
+
+    # Configuration Register settings
+    # OS = 1 (start a single conversion)
+    # MUX[2:0] = mux (select the input channel)
+    # PGA[2:0] = 0b010 (gain ±2.048V)
+    # MODE = 1 (single-shot mode)
+    config_upper = (1 << 15) | (mux << 12) | (0b010 << 9) | (1 << 8)
+
+    # DR[2:0] = 0b100 (1600 samples per second)
+    # COMP_MODE = 0 (traditional comparator)
+    # COMP_POL = 0 (active low)
+    # COMP_LAT = 0 (non-latching)
+    # COMP_QUE[1:0] = 0b11 (disable comparator)
+    config_lower = (0b100 << 5) | 0x03  # Last two bits set COMP_QUE[1:0] = 0b11
+
+    # Combine upper and lower bytes of the configuration
+    config = config_upper | config_lower
+
+    # Split the 16-bit configuration into two 8-bit bytes
+    config_MSB = (config >> 8) & 0xFF
+    config_LSB = config & 0xFF
+
+    # Write configuration to the ADC's Configuration Register (register 0x01)
+    bus.write_i2c_block_data(address, 0x01, [config_MSB, config_LSB])
+
+    # Wait for the conversion to complete (conversion time depends on data rate)
+    time.sleep(0.001)  # Wait 1ms for conversion (safe for 1600SPS data rate)
+
+    # Read the conversion result from the Conversion Register (register 0x00)
+    data = bus.read_i2c_block_data(address, 0x00, 2)
+    result = (data[0] << 8) | data[1]
+
+    # Right-shift to align the 12-bit result (TLA2024 outputs data in bits [15:4])
+    raw_adc = result >> 4
+
+    # Convert to signed 12-bit integer
+    if raw_adc > 0x7FF:
+        raw_adc -= 0x1000
+
+    # Calculate the voltage based on the ADC's full-scale range (±2.048V)
+    voltage = raw_adc * 0.001  # Each LSB represents 1mV
+
+    return voltage
+
+
+
 # Function to update the plot
 def update(frame):
     # Generate 1 new reading in each update (10 updates per second)
@@ -88,10 +160,10 @@ def update(frame):
 
     # Generate random ADC readings for each quadrant
     index = len(indexes) + 1 if len(indexes) == 0 else indexes[-1] + 1
-    q1 = generate_random_adc_value()
-    q2 = generate_random_adc_value()
-    q3 = generate_random_adc_value()
-    q4 = generate_random_adc_value()
+    q1 = read_adc_channel(0, address, bus)
+    q2 = read_adc_channel(1, address, bus)
+    q3 = read_adc_channel(2, address, bus)
+    q4 = read_adc_channel(3, address, bus)
 
     # Append new data to lists
     indexes.append(index)
