@@ -124,15 +124,25 @@ def read_adc_channel(channel, address, bus):
     data = bus.read_i2c_block_data(address, 0x00, 2)
     result = (data[0] << 8) | data[1]
 
+    # Debugging output
+    print(f"Channel {channel}: Raw I2C Data Bytes: [{hex(data[0])}, {hex(data[1])}]")
+    print(f"Channel {channel}: Combined Result (before shift): {hex(result)}")
+
     # Right-shift to align the 12-bit result (TLA2024 outputs data in bits [15:4])
     raw_adc = result >> 4
+
+    print(f"Channel {channel}: Raw ADC Value (after shift): {raw_adc}")
 
     # Convert to signed 12-bit integer
     if raw_adc > 0x7FF:
         raw_adc -= 0x1000
+        print(f"Channel {channel}: Adjusted Raw ADC Value (signed): {raw_adc}")
 
     # Calculate the voltage based on the ADC's full-scale range (±2.048V)
+    # LSB size is (Full Scale Range) / (2^12) = 4.096V / 4096 = 1mV
     voltage = raw_adc * 0.001  # Each LSB represents 1mV
+
+    print(f"Channel {channel}: Voltage: {voltage} V\n")
 
     return voltage
 
