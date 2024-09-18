@@ -1,7 +1,42 @@
 import os
 import platform
-import smbus
 import time
+import csv
+from datetime import datetime
+import subprocess
+import sys
+
+# Function to install missing packages
+def install(package):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+
+# Check and import smbus
+try:
+    import smbus
+    print("smbus is already installed.")
+except ImportError:
+    print("smbus is not installed. Installing now...")
+    install("smbus")
+    try:
+        import smbus
+        print("smbus has been successfully installed.")
+    except ImportError:
+        print("Failed to install smbus.")
+
+# Check and import matplotlib
+try:
+    import matplotlib.pyplot as plt
+    from matplotlib.animation import FuncAnimation
+    print("matplotlib is already installed.")
+except ImportError:
+    print("matplotlib is not installed. Installing now...")
+    install("matplotlib")
+    try:
+        import matplotlib.pyplot as plt
+        from matplotlib.animation import FuncAnimation
+        print("matplotlib has been successfully installed.")
+    except ImportError:
+        print("Failed to install matplotlib.")
 
 # Determine the platform and set the correct file path
 current_platform = platform.system()
@@ -18,57 +53,12 @@ csv_dir = os.path.dirname(csv_filename)
 if not os.path.exists(csv_dir):
     os.makedirs(csv_dir)
 
-# Now proceed with the file operations
-try:
-    with open(csv_filename, mode='w', newline='') as file:
-        # Your code for writing to the CSV file
-        pass  # Replace with your code to generate the CSV content
-except Exception as e:
-    print(f"An error occurred: {e}")
-
-
-import subprocess
-import sys
-
-def install(package):
-    subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-
-try:
-    import pandas as pd
-    print("Pandas is already installed.")
-except ImportError:
-    print("Pandas is not installed. Installing now...")
-    install("pandas")
-    try:
-        import pandas as pd
-        print("Pandas has been successfully installed.")
-    except ImportError:
-        print("Failed to install Pandas.")
-
-try:
-    import matplotlib
-    print("Matplotlib is already installed.")
-except ImportError:
-    print("Matplotlib is not installed. Installing now...")
-    install("matplotlib")
-    try:
-        import matplotlib
-        print("Matplotlib has been successfully installed.")
-    except ImportError:
-        print("Failed to install Matplotlib.")
-
+import smbus
+import time
 import csv
-import random
 from datetime import datetime
-import pandas as pd
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 
-# Define the range for ADC values centered around 2.500 with deviations up to 1.000
-ADC_CENTER = 2.500
-ADC_DEVIATION = 1.000
-
-# Number of simulated readings to display
+# Number of readings to display
 NUM_READINGS = 100
 
 # Initialize lists to store data for plotting (only keep last NUM_READINGS points)
@@ -77,10 +67,6 @@ q1_values = []
 q2_values = []
 q3_values = []
 q4_values = []
-
-# Function to generate a random ADC value centered around 2.500 with deviation up to 1.000
-def generate_random_adc_value():
-    return round(random.uniform(ADC_CENTER - ADC_DEVIATION, ADC_CENTER + ADC_DEVIATION), 3)
 
 # Create an SMBus instance (e.g., bus number 1 for Raspberry Pi)
 bus = smbus.SMBus(1)
@@ -150,20 +136,24 @@ def read_adc_channel(channel, address, bus):
 
     return voltage
 
-
-
 # Function to update the plot
 def update(frame):
-    # Generate 1 new reading in each update (10 updates per second)
     # Generate current datetime
     current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    # Generate random ADC readings for each quadrant
+    # Read ADC readings for each channel
     index = len(indexes) + 1 if len(indexes) == 0 else indexes[-1] + 1
-    q1 = read_adc_channel(0, address, bus)
-    q2 = read_adc_channel(1, address, bus)
-    q3 = read_adc_channel(2, address, bus)
-    q4 = read_adc_channel(3, address, bus)
+    try:
+        q1 = read_adc_channel(0, address, bus)
+        q2 = read_adc_channel(1, address, bus)
+        q3 = read_adc_channel(2, address, bus)
+        q4 = read_adc_channel(3, address, bus)
+    except Exception as e:
+        print(f"Error reading ADC channels: {e}")
+        q1 = q2 = q3 = q4 = None
+
+    # Debugging printouts
+    print(f"Index: {index}, Time: {current_datetime}, Q1: {q1}, Q2: {q2}, Q3: {q3}, Q4: {q4}")
 
     # Append new data to lists
     indexes.append(index)
@@ -177,13 +167,13 @@ def update(frame):
         csv_writer = csv.writer(file)
         csv_writer.writerow([index, current_datetime, q1, q2, q3, q4])
 
-    # Keep only the last NUM_READINGS points (in place modification)
+    # Keep only the last NUM_READINGS points
     if len(indexes) > NUM_READINGS:
-        del indexes[:-NUM_READINGS]
-        del q1_values[:-NUM_READINGS]
-        del q2_values[:-NUM_READINGS]
-        del q3_values[:-NUM_READINGS]
-        del q4_values[:-NUM_READINGS]
+        indexes.pop(0)
+        q1_values.pop(0)
+        q2_values.pop(0)
+        q3_values.pop(0)
+        q4_values.pop(0)
 
     # Clear previous plots
     plt.cla()
@@ -196,20 +186,20 @@ def update(frame):
 
     # Add labels and legend
     plt.xlabel('Index')
-    plt.ylabel('ADC Reading')
-    plt.title('Real-Time Simulated ADC Readings (Last 100 Readings)')
-    plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=4)  # Fixed legend below the chart
+    plt.ylabel('ADC Reading (V)')
+    plt.title('Real-Time ADC Readings (Last 100 Readings)')
+    plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.1), ncol=4)
 
 # Create a CSV file and write the header
 with open(csv_filename, mode='w', newline='') as file:
     csv_writer = csv.writer(file)
     csv_writer.writerow(['Index', 'Datetime', 'Q1', 'Q2', 'Q3', 'Q4'])
 
-# Set up the figure and axis for the plot with increased width
-plt.figure(figsize=(12, 6))  # Increased width from 10 to 12 inches
+# Set up the figure and axis for the plot
+plt.figure(figsize=(12, 6))
 
-# Use FuncAnimation to update the plot in real-time every 100 ms (10 updates per second)
-ani = FuncAnimation(plt.gcf(), update, interval=100, cache_frame_data=False)  # Update every 100 ms
+# Use FuncAnimation to update the plot in real-time every 100 ms
+ani = FuncAnimation(plt.gcf(), update, interval=100, cache_frame_data=False)
 
 # Adjust layout to make space for the legend
 plt.subplots_adjust(bottom=0.2)
