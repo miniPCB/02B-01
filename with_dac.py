@@ -180,6 +180,12 @@ def update(frame):
     global wiper_position
     global above_threshold_counter, below_threshold_counter
 
+    # Clear the terminal screen
+    if current_platform == "Windows":
+        os.system('cls')
+    else:
+        os.system('clear')
+
     # Generate current datetime
     current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
