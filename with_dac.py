@@ -167,8 +167,8 @@ def read_adc_channel(channel, tla2024_address, bus):
     return voltage
 
 # Threshold voltages
-LOW_THRESHOLD = 1.50  # Voltage below which we increment the wiper position
-HIGH_THRESHOLD = 1.50  # Voltage above which we decrement the wiper position
+LOW_THRESHOLD = 1.61  # Voltage below which we increment the wiper position
+HIGH_THRESHOLD = 1.61  # Voltage above which we decrement the wiper position
 CONSECUTIVE_COUNT = 5  # Number of consecutive readings required to adjust the wiper
 
 # Initialize counters
