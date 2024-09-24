@@ -83,7 +83,7 @@ wiper_position = 32
 
 def set_wiper_position(bus, address, position):
     # Ensure position is within 0-63
-    position = max(0, min(position, 63))
+    position = max(0, min(position, 127))
     # Send the position byte to the MCP4018
     try:
         bus.write_byte(address, position)
@@ -195,10 +195,10 @@ def update(frame):
     if avg_voltage is not None:
         if avg_voltage < 1.00:
             wiper_position += 1
-            print(f"Average voltage {avg_voltage:.2f}V < 1.00V: Decrementing wiper position to {wiper_position}")
+            print(f"Average voltage {avg_voltage:.2f}V < 1.00V: Incrementing wiper position to {wiper_position}")
         elif avg_voltage > 2.00:
             wiper_position -= 1
-            print(f"Average voltage {avg_voltage:.2f}V > 2.00V: Incrementing wiper position to {wiper_position}")
+            print(f"Average voltage {avg_voltage:.2f}V > 2.00V: Decrementing wiper position to {wiper_position}")
 
         # Ensure wiper_position is within 0-63
         wiper_position = max(0, min(wiper_position, 63))
