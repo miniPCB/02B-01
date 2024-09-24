@@ -163,6 +163,7 @@ def read_adc_channel(channel, tla2024_address, bus):
     voltage = raw_adc * 0.001  # LSB size is 1 mV
 
     print(f"Channel {channel}: Voltage: {voltage} V\n")
+    print(f"Wiper position: {wiper_position}")
 
     return voltage
 
