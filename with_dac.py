@@ -194,10 +194,10 @@ def update(frame):
     # Adjust wiper position based on the average voltage
     if avg_voltage is not None:
         if avg_voltage < 1.00:
-            wiper_position -= 1
+            wiper_position += 1
             print(f"Average voltage {avg_voltage:.2f}V < 1.00V: Decrementing wiper position to {wiper_position}")
         elif avg_voltage > 2.00:
-            wiper_position += 1
+            wiper_position -= 1
             print(f"Average voltage {avg_voltage:.2f}V > 2.00V: Incrementing wiper position to {wiper_position}")
 
         # Ensure wiper_position is within 0-63
