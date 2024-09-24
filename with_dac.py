@@ -82,7 +82,7 @@ mcp4018_address = 0x2F
 wiper_position = 32
 
 def set_wiper_position(bus, address, position):
-    # Ensure position is within 0-63
+    # Ensure position is within 0-127
     position = max(0, min(position, 127))
     # Send the position byte to the MCP4018
     try:
@@ -200,8 +200,8 @@ def update(frame):
             wiper_position -= 1
             print(f"Average voltage {avg_voltage:.2f}V > 2.00V: Decrementing wiper position to {wiper_position}")
 
-        # Ensure wiper_position is within 0-63
-        wiper_position = max(0, min(wiper_position, 63))
+        # Ensure wiper_position is within 0-127
+        wiper_position = max(0, min(wiper_position, 128))
 
         # Update the MCP4018 wiper position
         set_wiper_position(bus, mcp4018_address, wiper_position)
