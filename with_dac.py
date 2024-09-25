@@ -79,7 +79,7 @@ tla2024_address = 0x48
 mcp4018_address = 0x2F
 
 # Initialize wiper position
-wiper_position = 32
+wiper_position = 127
 
 def set_wiper_position(bus, address, position):
     # Ensure position is within 0-127
@@ -168,7 +168,7 @@ def read_adc_channel(channel, tla2024_address, bus):
     return voltage
 
 # Threshold voltages
-LOW_THRESHOLD = 1.85  # Voltage below which we increment the wiper position
+LOW_THRESHOLD = 1.5  # Voltage below which we increment the wiper position
 HIGH_THRESHOLD = 1.90  # Voltage above which we decrement the wiper position
 CONSECUTIVE_COUNT = 1  # Number of consecutive readings required to adjust the wiper
 
