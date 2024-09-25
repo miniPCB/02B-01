@@ -117,8 +117,8 @@ def read_adc_channel(channel, tla2024_address, bus):
     # Set MODE bit (bit 8) to 1 for single-shot mode
     config |= (1 << 8)
 
-    # Set DR bits [7:5] to 0b100 for 1600 samples per second
-    config |= (0b100 & 0x7) << 5
+    # Set DR bits [7:5] to 0b110 for 3300 samples per second
+    config |= (0b110 & 0x7) << 5
 
     # Disable the comparator by setting COMP_MODE, COMP_POL, COMP_LAT to 0 and COMP_QUE[1:0] to 0b11
     config |= (0x03)  # COMP_QUE[1:0] bits
@@ -145,25 +145,15 @@ def read_adc_channel(channel, tla2024_address, bus):
     data = bus.read_i2c_block_data(tla2024_address, 0x00, 2)
     result = (data[0] << 8) | data[1]
 
-    # Debugging output
-    print(f"Channel {channel}: Raw I2C Data Bytes: [{hex(data[0])}, {hex(data[1])}]")
-    print(f"Channel {channel}: Combined Result (before shift): {hex(result)}")
-
     # Right-shift to align the 12-bit result (TLA2024 outputs data in bits [15:4])
     raw_adc = result >> 4
-
-    print(f"Channel {channel}: Raw ADC Value (after shift): {raw_adc}")
 
     # Convert to signed 12-bit integer (if necessary)
     if raw_adc > 0x7FF:
         raw_adc -= 0x1000
-        print(f"Channel {channel}: Adjusted Raw ADC Value (signed): {raw_adc}")
 
     # Calculate the voltage based on the ADC's full-scale range (±2.048V)
     voltage = raw_adc * 0.001  # LSB size is 1 mV
-
-    print(f"Channel {channel}: Voltage: {voltage} V\n")
-    print(f"Wiper position: {wiper_position}")
 
     return voltage
 
@@ -190,16 +180,34 @@ def update(frame):
     # Generate current datetime
     current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    # Read ADC readings for each channel
+    # Read and average ADC readings for each channel
     index = len(indexes) + 1 if len(indexes) == 0 else indexes[-1] + 1
+    sample_count = 10  # Number of samples to average
+
+    q1_sum = 0.0
+    q2_sum = 0.0
+    q3_sum = 0.0
+    q4_sum = 0.0
+
     try:
-        q1 = read_adc_channel(0, tla2024_address, bus)
-        q2 = read_adc_channel(1, tla2024_address, bus)
-        q3 = read_adc_channel(2, tla2024_address, bus)
-        q4 = read_adc_channel(3, tla2024_address, bus)
+        for _ in range(sample_count):
+            q1_sample = read_adc_channel(0, tla2024_address, bus)
+            q2_sample = read_adc_channel(1, tla2024_address, bus)
+            q3_sample = read_adc_channel(2, tla2024_address, bus)
+            q4_sample = read_adc_channel(3, tla2024_address, bus)
+
+            q1_sum += q1_sample
+            q2_sum += q2_sample
+            q3_sum += q3_sample
+            q4_sum += q4_sample
     except Exception as e:
         print(f"Error reading ADC channels: {e}")
         q1 = q2 = q3 = q4 = None
+    else:
+        q1 = q1_sum / sample_count
+        q2 = q2_sum / sample_count
+        q3 = q3_sum / sample_count
+        q4 = q4_sum / sample_count
 
     # Calculate the average of Q1, Q2, Q3, and Q4
     voltages = [v for v in [q1, q2, q3, q4] if v is not None]
