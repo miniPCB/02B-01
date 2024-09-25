@@ -216,41 +216,7 @@ def update(frame):
     else:
         avg_voltage = None
 
-    # Adjust wiper position based on the average voltage and counters
-    if avg_voltage is not None:
-        if avg_voltage < LOW_THRESHOLD:
-            below_threshold_counter += 1
-            above_threshold_counter = 0
-            print(f"Average voltage {avg_voltage:.2f}V < {LOW_THRESHOLD}V: below_threshold_counter = {below_threshold_counter}")
-        elif avg_voltage > HIGH_THRESHOLD:
-            above_threshold_counter += 1
-            below_threshold_counter = 0
-            print(f"Average voltage {avg_voltage:.2f}V > {HIGH_THRESHOLD}V: above_threshold_counter = {above_threshold_counter}")
-        else:
-            above_threshold_counter = 0
-            below_threshold_counter = 0
-            print(f"Average voltage {avg_voltage:.2f}V within thresholds.")
-
-        # Check if the counters have reached the required consecutive count
-        if below_threshold_counter >= CONSECUTIVE_COUNT:
-            wiper_position += 1
-            below_threshold_counter = 0  # Reset counter after adjustment
-            print(f"Average voltage consistently below {LOW_THRESHOLD}V: Incrementing wiper position to {wiper_position}")
-            # Ensure wiper_position is within 0-127
-            wiper_position = max(0, min(wiper_position, 127))
-            set_wiper_position(bus, mcp4018_address, wiper_position)
-        elif above_threshold_counter >= CONSECUTIVE_COUNT:
-            wiper_position -= 1
-            above_threshold_counter = 0  # Reset counter after adjustment
-            print(f"Average voltage consistently above {HIGH_THRESHOLD}V: Decrementing wiper position to {wiper_position}")
-            # Ensure wiper_position is within 0-127
-            wiper_position = max(0, min(wiper_position, 127))
-            set_wiper_position(bus, mcp4018_address, wiper_position)
-    else:
-        print("Average voltage is None, skipping wiper adjustment")
-
-    # Debugging printouts
-    print(f"Index: {index}, Time: {current_datetime}, Q1: {q1}, Q2: {q2}, Q3: {q3}, Q4: {q4}, Average: {avg_voltage}")
+    # (Your existing code for adjusting the wiper position)
 
     # Append new data to lists
     indexes.append(index)
@@ -289,7 +255,7 @@ def update(frame):
     # Add labels and legend
     plt.xlabel('Index')
     plt.ylabel('ADC Reading (V)')
-    plt.title('Real-Time ADC Readings (Last 100 Readings)')
+    plt.title(f'Real-Time ADC Readings (Last {NUM_READINGS} Readings)\nWiper Position: {wiper_position}')
     plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=5)
 
 # Create a CSV file and write the header
