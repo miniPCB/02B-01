@@ -89,7 +89,7 @@ tla2024_address = 0x48
 mcp4018_address = 0x2F
 
 # Initialize wiper position
-wiper_position = 127
+wiper_position = 100
 
 def set_wiper_position(bus, address, position):
     # Ensure position is within 0-127
