@@ -48,8 +48,8 @@ DATALOGGER_GITHUB = 'https://github.com/miniPCB/02B-01.git'
 # Display program introduction
 def print_intro():
     print("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-    print("miniPCB")
-    print("02B-01: System Update")
+    print("miniPCB: System Update")
+    print(f"{DATALOGGER_GITHUB}")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
 # Display menu options
