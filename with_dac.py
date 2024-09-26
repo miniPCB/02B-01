@@ -67,7 +67,7 @@ indexes = []
 # Raw data lists
 q1_raw_values = []
 q2_raw_values = []
-q3_raw_values []
+q3_raw_values = []
 q4_raw_values = []
 avg_raw_values = []
 
