@@ -63,6 +63,15 @@ NUM_READINGS = 100
 
 # Initialize lists to store data for plotting (only keep last NUM_READINGS points)
 indexes = []
+
+# Raw data lists
+q1_raw_values = []
+q2_raw_values = []
+q3_raw_values []
+q4_raw_values = []
+avg_raw_values = []
+
+# Filtered data lists
 q1_values = []
 q2_values = []
 q3_values = []
@@ -123,9 +132,6 @@ def read_adc_channel(channel, tla2024_address, bus):
     # Disable the comparator by setting COMP_MODE, COMP_POL, COMP_LAT to 0 and COMP_QUE[1:0] to 0b11
     config |= (0x03)  # COMP_QUE[1:0] bits
 
-    # Debugging: Print the configuration register value
-    #print(f"Channel {channel}: Configuration Register: 0x{config:04X}")
-
     # Split the 16-bit configuration into two 8-bit bytes
     config_MSB = (config >> 8) & 0xFF
     config_LSB = config & 0xFF
@@ -166,10 +172,35 @@ CONSECUTIVE_COUNT = 15  # Number of consecutive readings required to adjust the 
 above_threshold_counter = 0
 below_threshold_counter = 0
 
+# Kalman filter variables for each channel
+kalman_vars = {
+    'q1': {'x_est': 0.0, 'P': 1.0},
+    'q2': {'x_est': 0.0, 'P': 1.0},
+    'q3': {'x_est': 0.0, 'P': 1.0},
+    'q4': {'x_est': 0.0, 'P': 1.0},
+    'avg': {'x_est': 0.0, 'P': 1.0}
+}
+
+# Process noise covariance (Q) and measurement noise covariance (R)
+Q = 1e-5  # Adjust based on system dynamics
+R = 1e-2  # Adjust based on sensor noise characteristics
+
+def kalman_filter(z, x_est_prev, P_prev):
+    # Prediction step
+    x_pred = x_est_prev  # Assuming the voltage doesn't change drastically
+    P_pred = P_prev + Q
+
+    # Update step
+    K = P_pred / (P_pred + R)
+    x_est = x_pred + K * (z - x_pred)
+    P = (1 - K) * P_pred
+
+    return x_est, P
+
 # Function to update the plot
 def update(frame):
     global wiper_position
-    global above_threshold_counter, below_threshold_counter
+    global above_threshold_counter, below_threshold_counter, kalman_vars
 
     # Clear the terminal screen
     if current_platform == "Windows":
@@ -209,61 +240,120 @@ def update(frame):
         q3 = q3_sum / sample_count
         q4 = q4_sum / sample_count
 
-    # Calculate the average of Q1, Q2, Q3, and Q4
-    voltages = [v for v in [q1, q2, q3, q4] if v is not None]
-    if voltages:
-        avg_voltage = sum(voltages) / len(voltages)
-    else:
-        avg_voltage = None
+    # Append raw data to lists
+    q1_raw_values.append(q1)
+    q2_raw_values.append(q2)
+    q3_raw_values.append(q3)
+    q4_raw_values.append(q4)
 
-    # Adjust wiper position based on the average voltage and counters
+    # Apply Kalman filter to each reading
+    if q1 is not None:
+        kalman_vars['q1']['x_est'], kalman_vars['q1']['P'] = kalman_filter(
+            q1, kalman_vars['q1']['x_est'], kalman_vars['q1']['P']
+        )
+        q1_filtered = kalman_vars['q1']['x_est']
+    else:
+        q1_filtered = None
+
+    if q2 is not None:
+        kalman_vars['q2']['x_est'], kalman_vars['q2']['P'] = kalman_filter(
+            q2, kalman_vars['q2']['x_est'], kalman_vars['q2']['P']
+        )
+        q2_filtered = kalman_vars['q2']['x_est']
+    else:
+        q2_filtered = None
+
+    if q3 is not None:
+        kalman_vars['q3']['x_est'], kalman_vars['q3']['P'] = kalman_filter(
+            q3, kalman_vars['q3']['x_est'], kalman_vars['q3']['P']
+        )
+        q3_filtered = kalman_vars['q3']['x_est']
+    else:
+        q3_filtered = None
+
+    if q4 is not None:
+        kalman_vars['q4']['x_est'], kalman_vars['q4']['P'] = kalman_filter(
+            q4, kalman_vars['q4']['x_est'], kalman_vars['q4']['P']
+        )
+        q4_filtered = kalman_vars['q4']['x_est']
+    else:
+        q4_filtered = None
+
+    # Calculate the average of the filtered voltages
+    filtered_voltages = [v for v in [q1_filtered, q2_filtered, q3_filtered, q4_filtered] if v is not None]
+    if filtered_voltages:
+        avg_filtered_voltage = sum(filtered_voltages) / len(filtered_voltages)
+        # Apply Kalman filter to the average
+        kalman_vars['avg']['x_est'], kalman_vars['avg']['P'] = kalman_filter(
+            avg_filtered_voltage, kalman_vars['avg']['x_est'], kalman_vars['avg']['P']
+        )
+        avg_voltage_filtered = kalman_vars['avg']['x_est']
+    else:
+        avg_voltage_filtered = None
+
+    # Use the filtered average voltage for control logic
+    avg_raw_voltage = sum([v for v in [q1, q2, q3, q4] if v is not None]) / len([v for v in [q1, q2, q3, q4] if v is not None])
+    avg_raw_values.append(avg_raw_voltage)
+
+    if avg_voltage_filtered is not None:
+        avg_voltage = avg_voltage_filtered  # Replace the raw average with the filtered one
+    else:
+        avg_voltage = None  # Handle as needed
+
+    # Adjust wiper position based on the filtered average voltage and counters
     if avg_voltage is not None:
         if avg_voltage < LOW_THRESHOLD:
             below_threshold_counter += 1
             above_threshold_counter = 0
-            print(f"Average voltage {avg_voltage:.2f}V < {LOW_THRESHOLD}V: below_threshold_counter = {below_threshold_counter}")
+            print(f"Filtered average voltage {avg_voltage:.2f}V < {LOW_THRESHOLD}V: below_threshold_counter = {below_threshold_counter}")
         elif avg_voltage > HIGH_THRESHOLD:
             above_threshold_counter += 1
             below_threshold_counter = 0
-            print(f"Average voltage {avg_voltage:.2f}V > {HIGH_THRESHOLD}V: above_threshold_counter = {above_threshold_counter}")
+            print(f"Filtered average voltage {avg_voltage:.2f}V > {HIGH_THRESHOLD}V: above_threshold_counter = {above_threshold_counter}")
         else:
             above_threshold_counter = 0
             below_threshold_counter = 0
-            print(f"Average voltage {avg_voltage:.2f}V within thresholds.")
+            print(f"Filtered average voltage {avg_voltage:.2f}V within thresholds.")
 
         # Check if the counters have reached the required consecutive count
         if below_threshold_counter >= CONSECUTIVE_COUNT:
             wiper_position += 1
             below_threshold_counter = 0  # Reset counter after adjustment
-            print(f"Average voltage consistently below {LOW_THRESHOLD}V: Incrementing wiper position to {wiper_position}")
+            print(f"Filtered average voltage consistently below {LOW_THRESHOLD}V: Incrementing wiper position to {wiper_position}")
             # Ensure wiper_position is within 0-127
             wiper_position = max(0, min(wiper_position, 127))
             set_wiper_position(bus, mcp4018_address, wiper_position)
         elif above_threshold_counter >= CONSECUTIVE_COUNT:
             wiper_position -= 1
             above_threshold_counter = 0  # Reset counter after adjustment
-            print(f"Average voltage consistently above {HIGH_THRESHOLD}V: Decrementing wiper position to {wiper_position}")
+            print(f"Filtered average voltage consistently above {HIGH_THRESHOLD}V: Decrementing wiper position to {wiper_position}")
             # Ensure wiper_position is within 0-127
             wiper_position = max(0, min(wiper_position, 127))
             set_wiper_position(bus, mcp4018_address, wiper_position)
     else:
-        print("Average voltage is None, skipping wiper adjustment")
+        print("Filtered average voltage is None, skipping wiper adjustment")
 
     # Debugging printouts
-    print(f"Index: {index}, Wiper position: {wiper_position}, Time: {current_datetime}, Q1: {q1}, Q2: {q2}, Q3: {q3}, Q4: {q4}, Average: {avg_voltage}")
+    print(f"Index: {index}, Wiper position: {wiper_position}, Time: {current_datetime}")
+    print(f"Raw Voltages - Q1: {q1}, Q2: {q2}, Q3: {q3}, Q4: {q4}, Average: {avg_raw_voltage}")
+    print(f"Filtered Voltages - Q1: {q1_filtered}, Q2: {q2_filtered}, Q3: {q3_filtered}, Q4: {q4_filtered}, Average: {avg_voltage_filtered}")
 
-    # Append new data to lists
+    # Append filtered data to lists for plotting
     indexes.append(index)
-    q1_values.append(q1)
-    q2_values.append(q2)
-    q3_values.append(q3)
-    q4_values.append(q4)
-    avg_values.append(avg_voltage)
+    q1_values.append(q1_filtered)
+    q2_values.append(q2_filtered)
+    q3_values.append(q3_filtered)
+    q4_values.append(q4_filtered)
+    avg_values.append(avg_voltage_filtered)
 
     # Append data to CSV file
     with open(csv_filename, mode='a', newline='') as file:
         csv_writer = csv.writer(file)
-        csv_writer.writerow([index, current_datetime, q1, q2, q3, q4, avg_voltage])
+        csv_writer.writerow([
+            index, current_datetime,
+            q1, q2, q3, q4, avg_raw_voltage,  # Raw values
+            q1_filtered, q2_filtered, q3_filtered, q4_filtered, avg_voltage_filtered  # Filtered values
+        ])
 
     # Keep only the last NUM_READINGS points
     if len(indexes) > NUM_READINGS:
@@ -273,16 +363,28 @@ def update(frame):
         q3_values.pop(0)
         q4_values.pop(0)
         avg_values.pop(0)
+        q1_raw_values.pop(0)
+        q2_raw_values.pop(0)
+        q3_raw_values.pop(0)
+        q4_raw_values.pop(0)
+        avg_raw_values.pop(0)
 
     # Clear previous plots
     plt.cla()
 
-    # Plot the updated data
-    plt.plot(indexes, q1_values, label='Q1')
-    plt.plot(indexes, q2_values, label='Q2')
-    plt.plot(indexes, q3_values, label='Q3')
-    plt.plot(indexes, q4_values, label='Q4')
-    plt.plot(indexes, avg_values, label='Average', linestyle='--', color='black')
+    # Plot the filtered data
+    plt.plot(indexes, q1_values, label='Q1 Filtered')
+    plt.plot(indexes, q2_values, label='Q2 Filtered')
+    plt.plot(indexes, q3_values, label='Q3 Filtered')
+    plt.plot(indexes, q4_values, label='Q4 Filtered')
+    plt.plot(indexes, avg_values, label='Average Filtered', linestyle='--', color='black')
+
+    # Optionally, plot raw data for comparison
+    plt.plot(indexes, q1_raw_values, label='Q1 Raw', alpha=0.3)
+    plt.plot(indexes, q2_raw_values, label='Q2 Raw', alpha=0.3)
+    plt.plot(indexes, q3_raw_values, label='Q3 Raw', alpha=0.3)
+    plt.plot(indexes, q4_raw_values, label='Q4 Raw', alpha=0.3)
+    plt.plot(indexes, avg_raw_values, label='Average Raw', linestyle='--', color='gray', alpha=0.3)
 
     plt.ylim(0, 3.3)
 
@@ -295,7 +397,11 @@ def update(frame):
 # Create a CSV file and write the header
 with open(csv_filename, mode='w', newline='') as file:
     csv_writer = csv.writer(file)
-    csv_writer.writerow(['Index', 'Datetime', 'Q1', 'Q2', 'Q3', 'Q4', 'Average'])
+    csv_writer.writerow([
+        'Index', 'Datetime',
+        'Q1_raw', 'Q2_raw', 'Q3_raw', 'Q4_raw', 'Average_raw',
+        'Q1_filtered', 'Q2_filtered', 'Q3_filtered', 'Q4_filtered', 'Average_filtered'
+    ])
 
 # Set up the figure and axis for the plot
 plt.figure(figsize=(12, 6))
