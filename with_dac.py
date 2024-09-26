@@ -124,7 +124,7 @@ def read_adc_channel(channel, tla2024_address, bus):
     config |= (0x03)  # COMP_QUE[1:0] bits
 
     # Debugging: Print the configuration register value
-    print(f"Channel {channel}: Configuration Register: 0x{config:04X}")
+    #print(f"Channel {channel}: Configuration Register: 0x{config:04X}")
 
     # Split the 16-bit configuration into two 8-bit bytes
     config_MSB = (config >> 8) & 0xFF
@@ -250,7 +250,7 @@ def update(frame):
         print("Average voltage is None, skipping wiper adjustment")
 
     # Debugging printouts
-    print(f"Index: {index}, Time: {current_datetime}, Q1: {q1}, Q2: {q2}, Q3: {q3}, Q4: {q4}, Average: {avg_voltage}")
+    print(f"Index: {index}, Wiper position: {wiper_position}, Time: {current_datetime}, Q1: {q1}, Q2: {q2}, Q3: {q3}, Q4: {q4}, Average: {avg_voltage}")
 
     # Append new data to lists
     indexes.append(index)
