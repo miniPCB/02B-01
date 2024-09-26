@@ -5,6 +5,7 @@ import csv
 from datetime import datetime
 import subprocess
 import sys
+import numpy as np  # Added for numerical operations
 
 # Function to install missing packages
 def install(package):
@@ -181,13 +182,25 @@ kalman_vars = {
     'avg': {'x_est': 0.0, 'P': 1.0}
 }
 
-# Process noise covariance (Q) and measurement noise covariance (R)
-Q = 1e-5  # Adjust based on system dynamics
-R = 1e-2  # Adjust based on sensor noise characteristics
+# Initialize measurement windows for dynamic R estimation
+window_size = 20  # Number of recent measurements to consider
+measurement_windows = {
+    'q1': [],
+    'q2': [],
+    'q3': [],
+    'q4': [],
+    'avg': []
+}
 
-def kalman_filter(z, x_est_prev, P_prev):
+# Minimum R value to prevent division by zero or too small R
+MIN_R = 1e-5
+
+# Scaling factor for Q adjustment
+q_scale = 1e-4  # Adjust based on system dynamics
+
+def kalman_filter(z, x_est_prev, P_prev, Q, R):
     # Prediction step
-    x_pred = x_est_prev  # Assuming the voltage doesn't change drastically
+    x_pred = x_est_prev
     P_pred = P_prev + Q
 
     # Update step
@@ -200,7 +213,7 @@ def kalman_filter(z, x_est_prev, P_prev):
 # Function to update the plot
 def update(frame):
     global wiper_position
-    global above_threshold_counter, below_threshold_counter, kalman_vars
+    global above_threshold_counter, below_threshold_counter, kalman_vars, measurement_windows
 
     # Clear the terminal screen
     if current_platform == "Windows":
@@ -246,46 +259,62 @@ def update(frame):
     q3_raw_values.append(q3)
     q4_raw_values.append(q4)
 
-    # Apply Kalman filter to each reading
-    if q1 is not None:
-        kalman_vars['q1']['x_est'], kalman_vars['q1']['P'] = kalman_filter(
-            q1, kalman_vars['q1']['x_est'], kalman_vars['q1']['P']
-        )
-        q1_filtered = kalman_vars['q1']['x_est']
-    else:
-        q1_filtered = None
+    # Update measurement windows
+    for key, value in zip(['q1', 'q2', 'q3', 'q4'], [q1, q2, q3, q4]):
+        if value is not None:
+            measurement_windows[key].append(value)
+            if len(measurement_windows[key]) > window_size:
+                measurement_windows[key].pop(0)
 
-    if q2 is not None:
-        kalman_vars['q2']['x_est'], kalman_vars['q2']['P'] = kalman_filter(
-            q2, kalman_vars['q2']['x_est'], kalman_vars['q2']['P']
-        )
-        q2_filtered = kalman_vars['q2']['x_est']
-    else:
-        q2_filtered = None
+    # Dynamic estimation of R for each channel
+    R_values = {}
+    for key in ['q1', 'q2', 'q3', 'q4']:
+        window = measurement_windows[key]
+        if len(window) >= 2:
+            R_est = np.var(window)
+            R_values[key] = max(R_est, MIN_R)
+        else:
+            R_values[key] = 1e-2  # Default value if not enough data
 
-    if q3 is not None:
-        kalman_vars['q3']['x_est'], kalman_vars['q3']['P'] = kalman_filter(
-            q3, kalman_vars['q3']['x_est'], kalman_vars['q3']['P']
-        )
-        q3_filtered = kalman_vars['q3']['x_est']
-    else:
-        q3_filtered = None
+    # Apply Kalman filter to each reading with dynamic R
+    q_filtered = {}
+    for key, value in zip(['q1', 'q2', 'q3', 'q4'], [q1, q2, q3, q4]):
+        if value is not None:
+            # Dynamic adjustment of Q based on the rate of change
+            delta = abs(value - kalman_vars[key]['x_est'])
+            Q_dynamic = q_scale * delta
+            kalman_vars[key]['x_est'], kalman_vars[key]['P'] = kalman_filter(
+                value, kalman_vars[key]['x_est'], kalman_vars[key]['P'], Q_dynamic, R_values[key]
+            )
+            q_filtered[key] = kalman_vars[key]['x_est']
+        else:
+            q_filtered[key] = None
 
-    if q4 is not None:
-        kalman_vars['q4']['x_est'], kalman_vars['q4']['P'] = kalman_filter(
-            q4, kalman_vars['q4']['x_est'], kalman_vars['q4']['P']
-        )
-        q4_filtered = kalman_vars['q4']['x_est']
-    else:
-        q4_filtered = None
+    q1_filtered = q_filtered['q1']
+    q2_filtered = q_filtered['q2']
+    q3_filtered = q_filtered['q3']
+    q4_filtered = q_filtered['q4']
 
     # Calculate the average of the filtered voltages
     filtered_voltages = [v for v in [q1_filtered, q2_filtered, q3_filtered, q4_filtered] if v is not None]
     if filtered_voltages:
         avg_filtered_voltage = sum(filtered_voltages) / len(filtered_voltages)
+        # Update measurement window for avg
+        measurement_windows['avg'].append(avg_filtered_voltage)
+        if len(measurement_windows['avg']) > window_size:
+            measurement_windows['avg'].pop(0)
+        # Dynamic estimation of R for avg
+        if len(measurement_windows['avg']) >= 2:
+            R_avg_est = np.var(measurement_windows['avg'])
+            R_avg = max(R_avg_est, MIN_R)
+        else:
+            R_avg = 1e-2  # Default value
+        # Dynamic adjustment of Q for avg
+        delta_avg = abs(avg_filtered_voltage - kalman_vars['avg']['x_est'])
+        Q_avg_dynamic = q_scale * delta_avg
         # Apply Kalman filter to the average
         kalman_vars['avg']['x_est'], kalman_vars['avg']['P'] = kalman_filter(
-            avg_filtered_voltage, kalman_vars['avg']['x_est'], kalman_vars['avg']['P']
+            avg_filtered_voltage, kalman_vars['avg']['x_est'], kalman_vars['avg']['P'], Q_avg_dynamic, R_avg
         )
         avg_voltage_filtered = kalman_vars['avg']['x_est']
     else:
@@ -337,6 +366,8 @@ def update(frame):
     print(f"Index: {index}, Wiper position: {wiper_position}, Time: {current_datetime}")
     print(f"Raw Voltages - Q1: {q1}, Q2: {q2}, Q3: {q3}, Q4: {q4}, Average: {avg_raw_voltage}")
     print(f"Filtered Voltages - Q1: {q1_filtered}, Q2: {q2_filtered}, Q3: {q3_filtered}, Q4: {q4_filtered}, Average: {avg_voltage_filtered}")
+    print(f"Dynamic R Values - Q1: {R_values['q1']}, Q2: {R_values['q2']}, Q3: {R_values['q3']}, Q4: {R_values['q4']}")
+    print(f"Dynamic Q Values - Q1: {q_scale * abs(q1 - kalman_vars['q1']['x_est'])}, Q2: {q_scale * abs(q2 - kalman_vars['q2']['x_est'])}, Q3: {q_scale * abs(q3 - kalman_vars['q3']['x_est'])}, Q4: {q_scale * abs(q4 - kalman_vars['q4']['x_est'])}")
 
     # Append filtered data to lists for plotting
     indexes.append(index)
