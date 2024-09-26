@@ -48,7 +48,7 @@ DATALOGGER_GITHUB = 'https://github.com/miniPCB/02B-01.git'
 # Display program introduction
 def print_intro():
     print("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-    print("miniPCB: System Update")
+    print("miniPCB\nProgram: System Update")
     print(f"{DATALOGGER_GITHUB}")
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
@@ -138,11 +138,6 @@ def push_to_github(repository, directory, commit_message):
         print(f"Unexpected error: {e}")
         sys.exit(1)
 
-# Wrapper function for the push action with user-provided commit message
-def datalogger2git(commit_message):
-    print("\nPreparing to push changes to GitHub...")
-    push_to_github(DATALOGGER_GITHUB, INSTALL_PATH, commit_message)
-
 # Main program loop
 def main():
     print_intro()
@@ -156,7 +151,7 @@ def main():
                 commit_message = input("\nEnter commit message: ").strip()
                 if not commit_message:
                     print("Commit message cannot be empty. Please try again.")
-            datalogger2git(commit_message)
+            push_to_github(DATALOGGER_GITHUB, INSTALL_PATH, commit_message)
             break
 
         elif choice == '2':

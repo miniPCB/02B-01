@@ -196,7 +196,7 @@ measurement_windows = {
 MIN_R = 1e-5
 
 # Scaling factor for Q adjustment
-q_scale = 1e-4  # Adjust based on system dynamics
+q_scale = 1e-2  # Adjust based on system dynamics
 
 def kalman_filter(z, x_est_prev, P_prev, Q, R):
     # Prediction step
