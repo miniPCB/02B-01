@@ -403,36 +403,34 @@ def update(frame):
                 convolution_results.pop(0)
 
         # Determine the number of samples corresponding to 0.5 seconds for convolution
-        convolution_window_duration = 0.5    # Desired window duration in seconds
-        convolution_window_size = int(convolution_window_duration / (2*sampling_interval))  # Number of samples in the window
+        convolution_window_duration = 0.5  # Desired window duration in seconds
+        convolution_window_size = int(convolution_window_duration / sampling_interval)  # Number of samples in the window
 
-        # **Adaptive Convolution:** Adjust window size based on available samples
+        # Adaptive Convolution: Adjust window size based on available samples
         window_size = min(convolution_window_size, len(avg_values))
 
-        # Ensure both lists have sufficient data for convolution, even for smaller windows
+        # Ensure both lists have sufficient data for convolution, even with fewer samples
         if window_size > 0:
             # Use the available samples (even if fewer than the full window size)
-            avg_values_full = avg_values.copy()
+            avg_values_to_convolve = avg_values[-window_size:]  # Only use the last 'window_size' samples
+            wiper_positions_to_convolve = [wp - 95 for wp in wiper_positions[-window_size:]]  # Adjust wiper positions
+            
+            # Normalize the wiper position data for the convolution kernel
+            max_adjusted_wiper = max(map(abs, wiper_positions_to_convolve)) or 1  # Avoid division by zero
+            normalized_wiper_positions = [wp / max_adjusted_wiper for wp in wiper_positions_to_convolve]
 
-            # Adjust wiper position for convolution kernel
-            adjusted_wiper_positions_window = [wp - 95 for wp in wiper_positions[-window_size:]]
-            max_adjusted_wiper = max(map(abs, adjusted_wiper_positions_window)) or 1  # Avoid division by zero
-            normalized_wiper_window = [wp / max_adjusted_wiper for wp in adjusted_wiper_positions_window]
+            # Perform convolution directly without zero-padding
+            convolution_result = np.convolve(avg_values_to_convolve, normalized_wiper_positions, mode='valid')
 
-            # Pad the normalized wiper positions with zeros to match the length of avg_values
-            convolution_kernel = [0] * (len(avg_values_full) - window_size) + normalized_wiper_window
+            # Pad the convolution result to match the length of avg_values for consistent plotting
+            padding_size = len(avg_values) - len(convolution_result)
+            convolution_result_padded = [0] * padding_size + convolution_result.tolist()
 
-            # Perform convolution over the available data (even with fewer samples)
-            convolution_result = np.convolve(avg_values_full, convolution_kernel, mode='same')
-
-            # Update adjusted_wiper_positions for plotting
-            adjusted_wiper_positions = [wp - 95 for wp in wiper_positions]
         else:
-            convolution_result = [0] * len(avg_values)
-            adjusted_wiper_positions = [wp - 95 for wp in wiper_positions]
+            convolution_result_padded = [0] * len(avg_values)  # No convolution if no samples are available
 
         # Ensure convolution_results is always updated with a valid list
-        convolution_results = convolution_result.tolist()
+        convolution_results = convolution_result_padded
 
         # Append data to CSV file
         with open(csv_filename, mode='a', newline='') as file:
