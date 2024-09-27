@@ -423,6 +423,9 @@ def update(frame):
             # Perform convolution over the last 100 samples using the 5-sample kernel
             convolution_result = np.convolve(avg_values_window, kernel, mode='same')
 
+            # Normalize the convolution result by subtracting 5 from each value
+            convolution_result = convolution_result - 5
+
             # Fill convolution results to ensure we have 100 samples to plot
             if len(convolution_result) < 100:
                 convolution_result = np.concatenate((np.zeros(100 - len(convolution_result)), convolution_result))
