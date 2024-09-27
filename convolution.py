@@ -398,7 +398,7 @@ def update(frame):
             q4_raw_values.pop(0)
             avg_raw_values.pop(0)
             wiper_positions.pop(0)
-            if convolution_results:
+            if len(convolution_results) > 0:
                 convolution_results.pop(0)
 
         # Determine the number of samples corresponding to 0.5 seconds for convolution
@@ -432,7 +432,7 @@ def update(frame):
         # Append data to CSV file
         with open(csv_filename, mode='a', newline='') as file:
             csv_writer = csv.writer(file)
-            conv_result = convolution_results[-1] if convolution_results else ''
+            conv_result = convolution_results[-1] if len(convolution_results) > 0 else ''
             csv_writer.writerow([
                 index, current_datetime,
                 q1, q2, q3, q4, avg_raw_voltage,  # Raw values
