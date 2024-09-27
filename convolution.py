@@ -476,6 +476,9 @@ def update(frame):
         wiper_positions_scaled = [wp * (max_avg_voltage / max_adjusted_wiper) for wp in adjusted_wiper_positions_plot]
         plt.plot(indexes_plot, wiper_positions_scaled, label='Adjusted Wiper Position (scaled)', linestyle=':', color='green')
 
+        # Set fixed y-axis limits from 0 to 5
+        plt.ylim(0, 5)
+
         # Adjust plot labels and legend
         plt.xlabel('Index')
         plt.ylabel('Value')
