@@ -375,8 +375,17 @@ def update(frame):
         print(f"Raw Voltages - Q1: {q1}, Q2: {q2}, Q3: {q3}, Q4: {q4}, Average: {avg_raw_voltage}")
         print(f"Filtered Voltages - Q1: {q1_filtered}, Q2: {q2_filtered}, Q3: {q3_filtered}, Q4: {q4_filtered}, Average: {avg_voltage_filtered}")
 
-        # Keep only the last NUM_READINGS - 1 points BEFORE appending new data
-        if len(indexes) >= NUM_READINGS:
+        # Append filtered data to lists for plotting
+        indexes.append(index)
+        q1_values.append(q1_filtered)
+        q2_values.append(q2_filtered)
+        q3_values.append(q3_filtered)
+        q4_values.append(q4_filtered)
+        avg_values.append(avg_voltage_filtered)
+        wiper_positions.append(wiper_position)
+
+        # Ensure lists don't exceed NUM_READINGS
+        if len(indexes) > NUM_READINGS:
             indexes.pop(0)
             q1_values.pop(0)
             q2_values.pop(0)
@@ -391,47 +400,34 @@ def update(frame):
             wiper_positions.pop(0)
             if convolution_results:
                 convolution_results.pop(0)
-            if adjusted_wiper_positions:
-                adjusted_wiper_positions.pop(0)
-
-        # Append filtered data to lists for plotting
-        indexes.append(index)
-        q1_values.append(q1_filtered)
-        q2_values.append(q2_filtered)
-        q3_values.append(q3_filtered)
-        q4_values.append(q4_filtered)
-        avg_values.append(avg_voltage_filtered)
-        wiper_positions.append(wiper_position)
 
         # Determine the number of samples corresponding to 0.5 seconds for convolution
         convolution_window_duration = 0.5    # Desired window duration in seconds
         convolution_window_size = int(convolution_window_duration / sampling_interval)  # Number of samples in the window
 
-        # Ensure both lists have sufficient data for the convolution window
+        # Ensure both lists have sufficient data
         if len(avg_values) >= convolution_window_size and len(wiper_positions) >= convolution_window_size:
-            # Extract the data for the window
-            avg_values_window = avg_values[-convolution_window_size:]
-            wiper_positions_window = wiper_positions[-convolution_window_size:]
+            # Use the full avg_values
+            avg_values_full = avg_values.copy()
 
-            # Subtract 95 from wiper positions
-            adjusted_wiper_positions_window = [wp - 95 for wp in wiper_positions_window]
-
-            # Normalize the adjusted wiper positions
+            # Create the convolution kernel
+            adjusted_wiper_positions_window = [wp - 95 for wp in wiper_positions[-convolution_window_size:]]
             max_adjusted_wiper = max(map(abs, adjusted_wiper_positions_window)) or 1  # Avoid division by zero
-            normalized_wiper = [wp / max_adjusted_wiper for wp in adjusted_wiper_positions_window]
+            normalized_wiper_window = [wp / max_adjusted_wiper for wp in adjusted_wiper_positions_window]
 
-            # Perform convolution
-            convolution_window = np.convolve(avg_values_window, normalized_wiper, mode='same')
+            # Pad the normalized wiper positions with zeros to match the length of avg_values
+            convolution_kernel = [0] * (len(avg_values_full) - convolution_window_size) + normalized_wiper_window
 
-            # Create a convolution result that aligns with the full data length
-            padding_length = len(indexes) - len(convolution_window)
-            convolution_results = [0] * padding_length + convolution_window.tolist()
+            # Perform convolution over the full data
+            convolution_result = np.convolve(avg_values_full, convolution_kernel, mode='same')
 
             # Update adjusted_wiper_positions for plotting
-            adjusted_wiper_positions = [0] * padding_length + adjusted_wiper_positions_window
+            adjusted_wiper_positions = [wp - 95 for wp in wiper_positions]
         else:
-            convolution_results = [0] * len(indexes)
-            adjusted_wiper_positions = [0] * len(wiper_positions)
+            convolution_result = [0] * len(avg_values)
+            adjusted_wiper_positions = [wp - 95 for wp in wiper_positions]
+
+        convolution_results = convolution_result.tolist()
 
         # Append data to CSV file
         with open(csv_filename, mode='a', newline='') as file:
@@ -483,6 +479,7 @@ def update(frame):
             plt.ylim(min(combined_data), max(combined_data))
         else:
             plt.ylim(0, 3.3)
+
     except Exception as e:
         print(f"An error occurred in the update function: {e}")
         import traceback
