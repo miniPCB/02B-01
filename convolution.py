@@ -394,20 +394,33 @@ def update(frame):
     avg_values.append(avg_voltage_filtered)
     wiper_positions.append(wiper_position)
 
-    # Ensure both lists have the same length and sufficient data
-    if len(avg_values) == len(wiper_positions) and len(avg_values) >= 2:
+    # Determine the number of samples corresponding to 0.5 seconds
+    sampling_interval = 0.1  # Sampling interval in seconds (100 ms)
+    window_duration = 0.5    # Desired window duration in seconds
+    window_size = int(window_duration / sampling_interval)  # Number of samples in the window
+
+    # Ensure both lists have sufficient data for the window
+    if len(avg_values) >= window_size and len(wiper_positions) >= window_size:
+        # Extract the data for the window
+        avg_values_window = avg_values[-window_size:]
+        wiper_positions_window = wiper_positions[-window_size:]
+
         # Subtract 95 from wiper positions
-        adjusted_wiper_positions = [wp - 95 for wp in wiper_positions]
+        adjusted_wiper_positions_window = [wp - 95 for wp in wiper_positions_window]
 
         # Normalize the adjusted wiper positions
-        max_adjusted_wiper = max(map(abs, adjusted_wiper_positions)) or 1  # Avoid division by zero
-        normalized_wiper = [wp / max_adjusted_wiper for wp in adjusted_wiper_positions]
+        max_adjusted_wiper = max(map(abs, adjusted_wiper_positions_window)) or 1  # Avoid division by zero
+        normalized_wiper = [wp / max_adjusted_wiper for wp in adjusted_wiper_positions_window]
 
         # Perform convolution
-        convolution_result = np.convolve(avg_values, normalized_wiper, mode='same')
+        convolution_window = np.convolve(avg_values_window, normalized_wiper, mode='same')
 
-        # Ensure convolution_results matches the length of indexes
-        convolution_results = convolution_result.tolist()
+        # Create a convolution result that aligns with the full data length
+        padding_length = len(indexes) - len(convolution_window)
+        convolution_results = [0] * padding_length + convolution_window.tolist()
+
+        # Update adjusted_wiper_positions for plotting
+        adjusted_wiper_positions = [0] * padding_length + adjusted_wiper_positions_window
     else:
         convolution_results = [0] * len(indexes)
         adjusted_wiper_positions = [0] * len(wiper_positions)
@@ -452,6 +465,9 @@ def update(frame):
     plt.ylabel('Value')
     plt.title(f'Real-Time Data (Last {NUM_READINGS} Readings)\nWiper Position: {wiper_position}', fontsize=14)
     plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
+
+    # Set x-limits to show the last NUM_READINGS readings
+    plt.xlim(indexes_plot[0], indexes_plot[-1])
 
     # Optionally, set y-limits
     combined_data = avg_values_plot + convolution_results_plot + wiper_positions_scaled
