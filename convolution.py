@@ -403,34 +403,35 @@ def update(frame):
                 convolution_results.pop(0)
 
         # Determine the number of samples corresponding to 0.5 seconds for convolution
-        convolution_window_duration = 0.5    # Desired window duration in seconds
-        convolution_window_size = int(convolution_window_duration / (sampling_interval))  # Number of samples in the window
+        convolution_window_duration = 0.5  # Desired window duration in seconds
+        convolution_window_size = int(convolution_window_duration / sampling_interval)  # Number of samples in the window
 
-        # **Adaptive Convolution:** Adjust window size based on available samples
-        window_size = min(convolution_window_size, len(avg_values))
+        # Convolution will consider the full 100 samples or fewer if not yet available
+        window_size = min(len(avg_values), convolution_window_size)
 
-        # Ensure both lists have sufficient data for convolution, even with fewer samples
-        if window_size > 0:
-            # Use the available samples (even if fewer than the full window size)
-            avg_values_to_convolve = avg_values[-window_size:]  # Only use the last 'window_size' samples
-            wiper_positions_to_convolve = [wp - 95 for wp in wiper_positions[-window_size:]]  # Adjust wiper positions
-            
+        # Ensure both lists have sufficient data for convolution, even if fewer than 100 samples
+        if len(avg_values) >= window_size and len(wiper_positions) >= window_size:
+            # Always use the last 100 samples of avg_values
+            avg_values_to_convolve = avg_values[-100:]  # Ensure full 100 samples are taken, or fewer if not available
+            wiper_positions_to_convolve = [wp - 95 for wp in wiper_positions[-100:]]  # Adjust wiper positions over last 100 samples
+
             # Normalize the wiper position data for the convolution kernel
             max_adjusted_wiper = max(map(abs, wiper_positions_to_convolve)) or 1  # Avoid division by zero
             normalized_wiper_positions = [wp / max_adjusted_wiper for wp in wiper_positions_to_convolve]
 
-            # Perform convolution directly without zero-padding
-            convolution_result = np.convolve(avg_values_to_convolve, normalized_wiper_positions, mode='valid')
-
-            # Pad the convolution result to match the length of avg_values for consistent plotting
-            padding_size = len(avg_values) - len(convolution_result)
-            convolution_result_padded = [0] * padding_size + convolution_result.tolist()
+            # Perform convolution over the last 100 samples or fewer if not yet available
+            convolution_result = np.convolve(avg_values_to_convolve, normalized_wiper_positions, mode='same')
 
         else:
-            convolution_result_padded = [0] * len(avg_values)  # No convolution if no samples are available
-        
-        # Ensure convolution_results is always updated with a valid list
-        convolution_results = convolution_result_padded
+            # In case there are fewer samples than window size, initialize with zeros
+            convolution_result = [0] * len(avg_values)
+
+        # Update the convolution results with a valid list
+        convolution_results = convolution_result.tolist()
+
+        # Append convolution results, ensuring the list scrolls like the raw data
+        if len(convolution_results) > 100:
+            convolution_results = convolution_results[-100:]  # Keep the last 100 convolution results for smooth scrolling
 
         # Append data to CSV file
         with open(csv_filename, mode='a', newline='') as file:
