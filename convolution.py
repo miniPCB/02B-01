@@ -71,7 +71,7 @@ avg_values = []
 wiper_positions = []
 
 # Initialize list to store convolution results
-convolution_results = []
+convolution_results = []  # This will always be initialized as an empty list
 
 # Create an SMBus instance (e.g., bus number 1 for Raspberry Pi)
 bus = smbus.SMBus(1)
@@ -212,6 +212,7 @@ last_update_time = None
 
 # Function to update the plot
 def update(frame):
+    global convolution_results  # Ensure it's always accessible
     try:
         global wiper_position
         global above_threshold_counter, below_threshold_counter, kalman_vars, measurement_windows
@@ -427,6 +428,7 @@ def update(frame):
             convolution_result = [0] * len(avg_values)
             adjusted_wiper_positions = [wp - 95 for wp in wiper_positions]
 
+        # Ensure convolution_results is always updated with a valid list
         convolution_results = convolution_result.tolist()
 
         # Append data to CSV file
