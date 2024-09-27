@@ -404,7 +404,7 @@ def update(frame):
 
         # Determine the number of samples corresponding to 0.5 seconds for convolution
         convolution_window_duration = 0.5    # Desired window duration in seconds
-        convolution_window_size = int(convolution_window_duration / sampling_interval)  # Number of samples in the window
+        convolution_window_size = int(convolution_window_duration / (2*sampling_interval))  # Number of samples in the window
 
         # **Adaptive Convolution:** Adjust window size based on available samples
         window_size = min(convolution_window_size, len(avg_values))
