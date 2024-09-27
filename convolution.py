@@ -424,7 +424,7 @@ def update(frame):
             convolution_result = np.convolve(avg_values_window, kernel, mode='same')
 
             # Normalize the convolution result by subtracting 5 from each value
-            convolution_result = convolution_result - 5
+            convolution_result = convolution_result - 3
 
             # Fill convolution results to ensure we have 100 samples to plot
             if len(convolution_result) < 100:
