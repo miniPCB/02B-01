@@ -391,9 +391,12 @@ def update(frame):
 
     # Ensure both lists have the same length and sufficient data
     if len(avg_values) == len(wiper_positions) and len(avg_values) >= 2:
-        # Normalize wiper positions for convolution
-        max_wiper = max(wiper_positions) if max(wiper_positions) != 0 else 1
-        normalized_wiper = [wp / max_wiper for wp in wiper_positions]
+        # Subtract 95 from wiper positions
+        adjusted_wiper_positions = [wp - 95 for wp in wiper_positions]
+
+        # Normalize the adjusted wiper positions
+        max_adjusted_wiper = max(map(abs, adjusted_wiper_positions)) or 1  # Avoid division by zero
+        normalized_wiper = [wp / max_adjusted_wiper for wp in adjusted_wiper_positions]
 
         # Perform convolution
         convolution_result = np.convolve(avg_values, normalized_wiper, mode='same')
@@ -431,19 +434,12 @@ def update(frame):
     # Plot the filtered average voltage
     plt.plot(indexes_plot, avg_values_plot, label='Average Filtered', linestyle='--', color='black')
 
-    # Plot the wiper positions (scaled to match voltage scale)
-    if avg_values_plot:
-        max_avg_voltage = max(avg_values_plot)
-    else:
-        max_avg_voltage = 1
-
-    if wiper_positions_plot:
-        max_wiper_position = max(wiper_positions_plot)
-    else:
-        max_wiper_position = 1
-
-    wiper_positions_scaled = [wp * (max_avg_voltage / max_wiper_position) for wp in wiper_positions_plot]
-    plt.plot(indexes_plot, wiper_positions_scaled, label='Wiper Position (scaled)', linestyle=':', color='green')
+    # Plot the adjusted wiper positions (scaled)
+    adjusted_wiper_positions_plot = adjusted_wiper_positions[-min_length:]
+    max_avg_voltage = max(avg_values_plot) if avg_values_plot else 1
+    max_adjusted_wiper = max(map(abs, adjusted_wiper_positions_plot)) or 1
+    wiper_positions_scaled = [wp * (max_avg_voltage / max_adjusted_wiper) for wp in adjusted_wiper_positions_plot]
+    plt.plot(indexes_plot, wiper_positions_scaled, label='Adjusted Wiper Position (scaled)', linestyle=':', color='green')
 
     # Adjust plot labels and legend
     plt.xlabel('Index')
@@ -454,7 +450,7 @@ def update(frame):
     # Optionally, set y-limits
     combined_data = avg_values_plot + convolution_results_plot + wiper_positions_scaled
     if combined_data:
-        plt.ylim(0, max(max(combined_data), 3.3))
+        plt.ylim(min(combined_data), max(combined_data))
     else:
         plt.ylim(0, 3.3)
 
