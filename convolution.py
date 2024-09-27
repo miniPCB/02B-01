@@ -403,10 +403,10 @@ def update(frame):
                 convolution_results.pop(0)
 
         # Determine the number of samples corresponding to 0.5 seconds for convolution
-        convolution_window_duration = 0.5  # Desired window duration in seconds
-        convolution_window_size = int(convolution_window_duration / sampling_interval)  # Number of samples in the window
+        convolution_window_duration = 0.5    # Desired window duration in seconds
+        convolution_window_size = int(convolution_window_duration / (sampling_interval))  # Number of samples in the window
 
-        # Adaptive Convolution: Adjust window size based on available samples
+        # **Adaptive Convolution:** Adjust window size based on available samples
         window_size = min(convolution_window_size, len(avg_values))
 
         # Ensure both lists have sufficient data for convolution, even with fewer samples
@@ -428,7 +428,7 @@ def update(frame):
 
         else:
             convolution_result_padded = [0] * len(avg_values)  # No convolution if no samples are available
-
+        
         # Ensure convolution_results is always updated with a valid list
         convolution_results = convolution_result_padded
 
