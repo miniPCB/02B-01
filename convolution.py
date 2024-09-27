@@ -177,7 +177,7 @@ kalman_vars = {
 }
 
 # Initialize measurement windows for dynamic R estimation
-window_size = 20  # Number of recent measurements to consider
+measurement_window_size = 20  # Number of recent measurements to consider
 measurement_windows = {
     'q1': [],
     'q2': [],
@@ -271,7 +271,7 @@ def update(frame):
         for key, value in zip(['q1', 'q2', 'q3', 'q4'], [q1, q2, q3, q4]):
             if value is not None:
                 measurement_windows[key].append(value)
-                if len(measurement_windows[key]) > window_size:
+                if len(measurement_windows[key]) > measurement_window_size:
                     measurement_windows[key].pop(0)
 
         # Dynamic estimation of R for each channel
@@ -309,7 +309,7 @@ def update(frame):
             avg_filtered_voltage = sum(filtered_voltages) / len(filtered_voltages)
             # Update measurement window for avg
             measurement_windows['avg'].append(avg_filtered_voltage)
-            if len(measurement_windows['avg']) > window_size:
+            if len(measurement_windows['avg']) > measurement_window_size:
                 measurement_windows['avg'].pop(0)
             # Dynamic estimation of R for avg
             if len(measurement_windows['avg']) >= 2:
@@ -403,15 +403,15 @@ def update(frame):
         avg_values.append(avg_voltage_filtered)
         wiper_positions.append(wiper_position)
 
-        # Determine the number of samples corresponding to 0.5 seconds
-        window_duration = 0.5    # Desired window duration in seconds
-        window_size = int(window_duration / sampling_interval)  # Number of samples in the window
+        # Determine the number of samples corresponding to 0.5 seconds for convolution
+        convolution_window_duration = 0.5    # Desired window duration in seconds
+        convolution_window_size = int(convolution_window_duration / sampling_interval)  # Number of samples in the window
 
-        # Ensure both lists have sufficient data for the window
-        if len(avg_values) >= window_size and len(wiper_positions) >= window_size:
+        # Ensure both lists have sufficient data for the convolution window
+        if len(avg_values) >= convolution_window_size and len(wiper_positions) >= convolution_window_size:
             # Extract the data for the window
-            avg_values_window = avg_values[-window_size:]
-            wiper_positions_window = wiper_positions[-window_size:]
+            avg_values_window = avg_values[-convolution_window_size:]
+            wiper_positions_window = wiper_positions[-convolution_window_size:]
 
             # Subtract 95 from wiper positions
             adjusted_wiper_positions_window = [wp - 95 for wp in wiper_positions_window]
