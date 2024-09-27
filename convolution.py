@@ -209,6 +209,9 @@ def update(frame):
     global wiper_position
     global above_threshold_counter, below_threshold_counter, kalman_vars, measurement_windows
 
+    # Initialize adjusted_wiper_positions
+    adjusted_wiper_positions = []
+
     # Clear the terminal screen
     if current_platform == "Windows":
         os.system('cls')
@@ -379,6 +382,8 @@ def update(frame):
         wiper_positions.pop(0)
         if convolution_results:
             convolution_results.pop(0)
+        if adjusted_wiper_positions:
+            adjusted_wiper_positions.pop(0)
 
     # Append filtered data to lists for plotting
     indexes.append(index)
@@ -405,6 +410,7 @@ def update(frame):
         convolution_results = convolution_result.tolist()
     else:
         convolution_results = [0] * len(indexes)
+        adjusted_wiper_positions = [0] * len(wiper_positions)
 
     # Append data to CSV file
     with open(csv_filename, mode='a', newline='') as file:
@@ -426,6 +432,7 @@ def update(frame):
     indexes_plot = indexes[-min_length:]
     avg_values_plot = avg_values[-min_length:]
     wiper_positions_plot = wiper_positions[-min_length:]
+    adjusted_wiper_positions_plot = adjusted_wiper_positions[-min_length:]
     convolution_results_plot = convolution_results[-min_length:]
 
     # Plot the convolution result
@@ -435,7 +442,6 @@ def update(frame):
     plt.plot(indexes_plot, avg_values_plot, label='Average Filtered', linestyle='--', color='black')
 
     # Plot the adjusted wiper positions (scaled)
-    adjusted_wiper_positions_plot = adjusted_wiper_positions[-min_length:]
     max_avg_voltage = max(avg_values_plot) if avg_values_plot else 1
     max_adjusted_wiper = max(map(abs, adjusted_wiper_positions_plot)) or 1
     wiper_positions_scaled = [wp * (max_avg_voltage / max_adjusted_wiper) for wp in adjusted_wiper_positions_plot]
