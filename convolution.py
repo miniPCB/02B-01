@@ -46,8 +46,9 @@ import time
 import csv
 from datetime import datetime
 
-# Number of readings to display
+# Adjust NUM_READINGS to be at least 2 to allow convolution
 NUM_READINGS = 100
+NUM_READINGS = max(NUM_READINGS, 2)
 
 # Initialize lists to store data for plotting (only keep last NUM_READINGS points)
 indexes = []
@@ -218,7 +219,7 @@ def update(frame):
     current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     # Read and average ADC readings for each channel
-    index = len(indexes) + 1 if len(indexes) == 0 else indexes[-1] + 1
+    index = indexes[-1] + 1 if indexes else 1
     sample_count = 10  # Number of samples to average
 
     q1_sum = 0.0
@@ -362,19 +363,8 @@ def update(frame):
     print(f"Dynamic R Values - Q1: {R_values['q1']}, Q2: {R_values['q2']}, Q3: {R_values['q3']}, Q4: {R_values['q4']}")
     print(f"Dynamic Q Values - Q1: {q_scale * abs(q1 - kalman_vars['q1']['x_est'])}, Q2: {q_scale * abs(q2 - kalman_vars['q2']['x_est'])}, Q3: {q_scale * abs(q3 - kalman_vars['q3']['x_est'])}, Q4: {q_scale * abs(q4 - kalman_vars['q4']['x_est'])}")
 
-    # Append filtered data to lists for plotting
-    indexes.append(index)
-    q1_values.append(q1_filtered)
-    q2_values.append(q2_filtered)
-    q3_values.append(q3_filtered)
-    q4_values.append(q4_filtered)
-    avg_values.append(avg_voltage_filtered)
-
-    # Append wiper position to list
-    wiper_positions.append(wiper_position)
-
-    # Keep only the last NUM_READINGS points
-    if len(indexes) > NUM_READINGS:
+    # Keep only the last NUM_READINGS - 1 points BEFORE appending new data
+    if len(indexes) >= NUM_READINGS:
         indexes.pop(0)
         q1_values.pop(0)
         q2_values.pop(0)
@@ -390,14 +380,25 @@ def update(frame):
         if convolution_results:
             convolution_results.pop(0)
 
-    # Compute convolution if enough data points are available
-    if len(avg_values) >= 2 and len(wiper_positions) >= 2:
+    # Append filtered data to lists for plotting
+    indexes.append(index)
+    q1_values.append(q1_filtered)
+    q2_values.append(q2_filtered)
+    q3_values.append(q3_filtered)
+    q4_values.append(q4_filtered)
+    avg_values.append(avg_voltage_filtered)
+    wiper_positions.append(wiper_position)
+
+    # Ensure both lists have the same length and sufficient data
+    if len(avg_values) == len(wiper_positions) and len(avg_values) >= 2:
         # Normalize wiper positions for convolution
         max_wiper = max(wiper_positions) if max(wiper_positions) != 0 else 1
         normalized_wiper = [wp / max_wiper for wp in wiper_positions]
 
         # Perform convolution
         convolution_result = np.convolve(avg_values, normalized_wiper, mode='same')
+
+        # Ensure convolution_results matches the length of indexes
         convolution_results = convolution_result.tolist()
     else:
         convolution_results = [0] * len(indexes)
@@ -405,36 +406,44 @@ def update(frame):
     # Append data to CSV file
     with open(csv_filename, mode='a', newline='') as file:
         csv_writer = csv.writer(file)
+        conv_result = convolution_results[-1] if convolution_results else ''
         csv_writer.writerow([
             index, current_datetime,
             q1, q2, q3, q4, avg_raw_voltage,  # Raw values
             q1_filtered, q2_filtered, q3_filtered, q4_filtered, avg_voltage_filtered,  # Filtered values
             wiper_position,
-            convolution_results[-1] if convolution_results else ''
+            conv_result
         ])
 
     # Clear previous plots
     plt.cla()
 
+    # Ensure data lists are the same length for plotting
+    min_length = min(len(indexes), len(avg_values), len(wiper_positions), len(convolution_results))
+    indexes_plot = indexes[-min_length:]
+    avg_values_plot = avg_values[-min_length:]
+    wiper_positions_plot = wiper_positions[-min_length:]
+    convolution_results_plot = convolution_results[-min_length:]
+
     # Plot the convolution result
-    plt.plot(indexes, convolution_results, label='Convolution', color='purple')
+    plt.plot(indexes_plot, convolution_results_plot, label='Convolution', color='purple')
 
     # Plot the filtered average voltage
-    plt.plot(indexes, avg_values, label='Average Filtered', linestyle='--', color='black')
+    plt.plot(indexes_plot, avg_values_plot, label='Average Filtered', linestyle='--', color='black')
 
     # Plot the wiper positions (scaled to match voltage scale)
-    if avg_values:
-        max_avg_voltage = max(avg_values)
+    if avg_values_plot:
+        max_avg_voltage = max(avg_values_plot)
     else:
         max_avg_voltage = 1
 
-    if wiper_positions:
-        max_wiper_position = max(wiper_positions)
+    if wiper_positions_plot:
+        max_wiper_position = max(wiper_positions_plot)
     else:
         max_wiper_position = 1
 
-    wiper_positions_scaled = [wp * (max_avg_voltage / max_wiper_position) for wp in wiper_positions]
-    plt.plot(indexes, wiper_positions_scaled, label='Wiper Position (scaled)', linestyle=':', color='green')
+    wiper_positions_scaled = [wp * (max_avg_voltage / max_wiper_position) for wp in wiper_positions_plot]
+    plt.plot(indexes_plot, wiper_positions_scaled, label='Wiper Position (scaled)', linestyle=':', color='green')
 
     # Adjust plot labels and legend
     plt.xlabel('Index')
@@ -443,7 +452,7 @@ def update(frame):
     plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
 
     # Optionally, set y-limits
-    combined_data = avg_values + convolution_results + wiper_positions_scaled
+    combined_data = avg_values_plot + convolution_results_plot + wiper_positions_scaled
     if combined_data:
         plt.ylim(0, max(max(combined_data), 3.3))
     else:
