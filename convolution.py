@@ -424,7 +424,7 @@ def update(frame):
             convolution_result = np.convolve(avg_values_window, kernel, mode='same')
 
             # Normalize the convolution result by subtracting 5 from each value
-            convolution_result = convolution_result - 3
+            convolution_result = convolution_result - 5
 
             # Fill convolution results to ensure we have 100 samples to plot
             if len(convolution_result) < 100:
@@ -461,22 +461,20 @@ def update(frame):
         indexes_plot = indexes[-min_length:]
         avg_values_plot = avg_values[-min_length:]
         wiper_positions_plot = wiper_positions[-min_length:]
+        adjusted_wiper_positions_plot = adjusted_wiper_positions[-min_length:]
         convolution_results_plot = convolution_results[-min_length:]
 
         # Plot the convolution result
-        plt.plot(indexes_plot, convolution_results_plot, label='Convolution (Normalized)', color='purple')
+        plt.plot(indexes_plot, convolution_results_plot, label='Convolution', color='purple')
 
         # Plot the filtered average voltage
         plt.plot(indexes_plot, avg_values_plot, label='Average Filtered', linestyle='--', color='black')
 
         # Plot the adjusted wiper positions (scaled)
         max_avg_voltage = max(avg_values_plot) if avg_values_plot else 1
-        max_adjusted_wiper = max(map(abs, wiper_positions_plot)) or 1
-        wiper_positions_scaled = [wp * (max_avg_voltage / max_adjusted_wiper) for wp in wiper_positions_plot]
+        max_adjusted_wiper = max(map(abs, adjusted_wiper_positions_plot)) or 1
+        wiper_positions_scaled = [wp * (max_avg_voltage / max_adjusted_wiper) for wp in adjusted_wiper_positions_plot]
         plt.plot(indexes_plot, wiper_positions_scaled, label='Adjusted Wiper Position (scaled)', linestyle=':', color='green')
-
-        # Set fixed y-axis limits from 0 to 5
-        plt.ylim(0, 5)
 
         # Adjust plot labels and legend
         plt.xlabel('Index')
@@ -487,8 +485,12 @@ def update(frame):
         # Set x-limits to show the last NUM_READINGS readings
         plt.xlim(indexes_plot[0], indexes_plot[-1])
 
-        # Optional: Adjust layout to make space for the legend
-        plt.subplots_adjust(bottom=0.25)
+        # Optionally, set y-limits
+        combined_data = avg_values_plot + convolution_results_plot + wiper_positions_scaled
+        if combined_data:
+            plt.ylim(min(combined_data), max(combined_data))
+        else:
+            plt.ylim(0, 3.3)
 
     except Exception as e:
         print(f"An error occurred in the update function: {e}")
