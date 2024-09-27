@@ -406,15 +406,15 @@ def update(frame):
         convolution_window_duration = 0.5    # Desired window duration in seconds
         convolution_window_size = int(convolution_window_duration / sampling_interval)  # Number of samples in the window
 
-        # Adjust convolution for fewer initial samples
+        # **Adaptive Convolution:** Adjust window size based on available samples
         window_size = min(convolution_window_size, len(avg_values))
 
-        # Ensure both lists have sufficient data
-        if len(avg_values) >= window_size and len(wiper_positions) >= window_size:
-            # Use the full avg_values
+        # Ensure both lists have sufficient data for convolution, even for smaller windows
+        if window_size > 0:
+            # Use the available samples (even if fewer than the full window size)
             avg_values_full = avg_values.copy()
 
-            # Create the convolution kernel
+            # Adjust wiper position for convolution kernel
             adjusted_wiper_positions_window = [wp - 95 for wp in wiper_positions[-window_size:]]
             max_adjusted_wiper = max(map(abs, adjusted_wiper_positions_window)) or 1  # Avoid division by zero
             normalized_wiper_window = [wp / max_adjusted_wiper for wp in adjusted_wiper_positions_window]
@@ -422,7 +422,7 @@ def update(frame):
             # Pad the normalized wiper positions with zeros to match the length of avg_values
             convolution_kernel = [0] * (len(avg_values_full) - window_size) + normalized_wiper_window
 
-            # Perform convolution over the full data
+            # Perform convolution over the available data (even with fewer samples)
             convolution_result = np.convolve(avg_values_full, convolution_kernel, mode='same')
 
             # Update adjusted_wiper_positions for plotting
