@@ -402,36 +402,41 @@ def update(frame):
             if len(convolution_results) > 0:
                 convolution_results.pop(0)
 
-        # Determine the number of samples corresponding to 0.5 seconds for convolution
-        convolution_window_duration = 0.5  # Desired window duration in seconds
-        convolution_window_size = int(convolution_window_duration / sampling_interval)  # Number of samples in the window
+        # Define the convolution window size: 0.5 seconds (i.e., 5 samples at 10 samples/second)
+        convolution_window_size = 5  # Window size of 5 samples (0.5 seconds)
 
-        # Convolution will consider the full 100 samples or fewer if not yet available
-        window_size = min(len(avg_values), convolution_window_size)
+        # Perform convolution based on the last available 100 samples in the data
+        if len(avg_values) > 0 and len(wiper_positions) > 0:
+            # Use the last 100 samples for plotting, but convolve using a 5-sample window
+            available_samples = min(len(avg_values), 100)
+            avg_values_window = avg_values[-available_samples:]  # Last 'available_samples' avg values
+            wiper_positions_window = wiper_positions[-available_samples:]  # Last 'available_samples' wiper positions
 
-        # Ensure both lists have sufficient data for convolution, even if fewer than 100 samples
-        if len(avg_values) >= window_size and len(wiper_positions) >= window_size:
-            # Always use the last 100 samples of avg_values
-            avg_values_to_convolve = avg_values[-100:]  # Ensure full 100 samples are taken, or fewer if not available
-            wiper_positions_to_convolve = [wp - 95 for wp in wiper_positions[-100:]]  # Adjust wiper positions over last 100 samples
+            # Normalize the wiper positions for convolution kernel
+            adjusted_wiper_positions = [wp - 95 for wp in wiper_positions_window]
+            max_adjusted_wiper = max(map(abs, adjusted_wiper_positions)) or 1  # Avoid division by zero
+            normalized_wiper_positions = [wp / max_adjusted_wiper for wp in adjusted_wiper_positions]
 
-            # Normalize the wiper position data for the convolution kernel
-            max_adjusted_wiper = max(map(abs, wiper_positions_to_convolve)) or 1  # Avoid division by zero
-            normalized_wiper_positions = [wp / max_adjusted_wiper for wp in wiper_positions_to_convolve]
+            # Create a convolution kernel for the last 5 wiper positions (or fewer if fewer available)
+            kernel = normalized_wiper_positions[-convolution_window_size:] if len(normalized_wiper_positions) >= convolution_window_size else normalized_wiper_positions
 
-            # Perform convolution over the last 100 samples or fewer if not yet available
-            convolution_result = np.convolve(avg_values_to_convolve, normalized_wiper_positions, mode='same')
+            # Perform convolution over the last 100 samples using the 5-sample kernel
+            convolution_result = np.convolve(avg_values_window, kernel, mode='same')
+
+            # Fill convolution results to ensure we have 100 samples to plot
+            if len(convolution_result) < 100:
+                convolution_result = np.concatenate((np.zeros(100 - len(convolution_result)), convolution_result))
 
         else:
-            # In case there are fewer samples than window size, initialize with zeros
-            convolution_result = [0] * len(avg_values)
+            # If not enough data is available, initialize with zeros
+            convolution_result = np.zeros(100)
 
-        # Update the convolution results with a valid list
+        # Ensure convolution results always have 100 samples for plotting
         convolution_results = convolution_result.tolist()
 
-        # Append convolution results, ensuring the list scrolls like the raw data
+        # Truncate if more than 100 samples are present to keep the scrolling behavior
         if len(convolution_results) > 100:
-            convolution_results = convolution_results[-100:]  # Keep the last 100 convolution results for smooth scrolling
+            convolution_results = convolution_results[-100:]
 
         # Append data to CSV file
         with open(csv_filename, mode='a', newline='') as file:
